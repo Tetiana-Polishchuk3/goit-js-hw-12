@@ -20,7 +20,7 @@ form.addEventListener('submit', handleSubmit);
 loadMore.addEventListener('click', onLoadMore);
 loadMore.classList.replace('js-load-more', 'load-more-hidden');
 
-function handleSubmit(event) {
+async function handleSubmit(event) {
   event.preventDefault();
   enteredInput = searchInput.value.trim();
   page = 1;
@@ -37,63 +37,64 @@ function handleSubmit(event) {
 
   showLoader();
   clearGallery();
-  loadMore.classList.replace('js-load-more', 'load-more-hidden');
+  loadMore.classList.add('load-more-hidden');
 
-  getImagesByQuery(enteredInput, page)
-    .then(response => {
-      const data = response.data;
+  try {
+    const data = await getImagesByQuery(enteredInput, page);
 
-      if (!data.hits || data.hits.length === 0) {
-        iziToast.warning({
-          position: 'topRight',
-          title: 'Warning',
-          message: 'Sorry, no images found. Please try another query!',
-        });
-        return;
-      }
-
-      if (data.hits.length < data.totalHits) {
-        loadMore.classList.replace('load-more-hidden', 'js-load-more');
-      } else {
-        loadMore.classList.replace('js-load-more', 'load-more-hidden');
-      }
-      createGallery(data.hits);
-    })
-    .catch(error => {
-      iziToast.error({
+    if (!data.hits || data.hits.length === 0) {
+      iziToast.warning({
         position: 'topRight',
-        title: 'Error',
-        message: 'Failed to fetch images. Please try again later.',
+        title: 'Warning',
+        message: 'Sorry, no images found. Please try another query!',
       });
-      console.error('Error:', error);
-    })
-    .finally(() => {
-      hideLoader();
-      searchInput.value = '';
+      return;
+    }
+
+    createGallery(data.hits);
+
+    const totalPages = Math.ceil(data.totalHits / 15);
+    if (page < totalPages) {
+      loadMore.classList.remove('load-more-hidden');
+      loadMore.classList.add('js-load-more');
+    }
+  } catch (error) {
+    iziToast.error({
+      position: 'topRight',
+      title: 'Error',
+      message: 'Failed to fetch images. Please try again later.',
     });
+    console.error('Error:', error);
+  } finally {
+    hideLoader();
+    searchInput.value = '';
+  }
 }
 
 async function onLoadMore() {
   page++;
   loadMore.disabled = true;
-  loadMore.classList.replace('js-load-more', 'load-more-hidden');
+  loadMore.classList.add('load-more-hidden');
   showLoader();
 
   try {
-    const response = await getImagesByQuery(enteredInput, page);
-    const data = response.data;
-
-    createGallery(data.hits);
-    getBoundingClientRect();
-
+    const data = await getImagesByQuery(enteredInput, page);
     const totalPages = Math.ceil(data.totalHits / 15);
+
     if (page > totalPages) {
       iziToast.info({
         position: 'topRight',
         message: "We're sorry, but you've reached the end of search results.",
       });
-    } else {
-      loadMore.classList.replace('load-more-hidden', 'js-load-more');
+      return;
+    }
+
+    createGallery(data.hits);
+    getBoundingClientRect();
+
+    if (page < totalPages) {
+      loadMore.classList.remove('load-more-hidden');
+      loadMore.classList.add('js-load-more');
     }
   } catch (error) {
     iziToast.error({
